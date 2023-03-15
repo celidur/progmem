@@ -1,0 +1,21 @@
+// commentaire 
+% commentaire
+# commentaire
+
+DBT ;dbt;
+FIN;
+ATT 8  ;
+DAL 1 	;  // ceci est aussi un commentaire
+//kk        # provoquera une erreur de compilation
+DET ;
+SGO 90 ;
+SAR ;     # un commentaire tout aussi bon
+MAR;
+
+MAV  67;
+mre 9;
+TRD  ;
+trg 	;
+DBC 34;   % la derniere forme de commentaire
+FBC;
+//adfaaarf ; // provoquera une erreur de compilation
