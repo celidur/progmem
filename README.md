@@ -1,10 +1,9 @@
-# progrem
 ./progmem [-s] [-d] [-c] [-o outputFile] inputFile
 
--s : stop la verbose (faculatif)
+-s : stop la verbose (facultatif)
 
--o : specification du fichier d'ecriture (facultatif)
+-o : specification du fichier d'écriture (facultatif)
 
 -d : decompile le program (facultatif)
 
--c : enleve du code inutile (facultatif, incimpatible avec -d)
+-c : enlève du code inutile (facultatif, incompatible avec -d)
