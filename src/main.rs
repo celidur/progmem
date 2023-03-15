@@ -8,17 +8,17 @@ use std::io::{BufRead, BufReader};
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
+    /// Mode of the program
+    #[arg(short, long, default_value_t = false)]
+    decompile: bool,
+
     /// Output location
-    #[arg(short, long, default_value_t = String::from("out"))]
+    #[arg(short, long, default_value_t = String::from("DEFAULT_OUTPUT"))]
     output: String,
 
     /// Verbosity of progmem
     #[arg(short, long, default_value_t = false)]
     silent: bool,
-
-    /// Mode of the program
-    #[arg(short, long, default_value_t = false)]
-    decompile: bool,
 
     /// Optimization
     #[arg(short, long, default_value_t = false)]
@@ -199,6 +199,7 @@ fn decompile(file_name: String, silent: bool) -> Result<String, String> {
         0b01001000 => ("sgo", true),
         0b00001001 => ("sar", false),
         0b01100000 => ("mar", false),
+        0b01100001 => ("mar", false),
         0b01100010 => ("mav", true),
         0b01100011 => ("mre", true),
         0b01100100 => ("trd", false),
@@ -250,19 +251,30 @@ fn decompile(file_name: String, silent: bool) -> Result<String, String> {
 fn main() {
     let args = Args::parse();
     if args.decompile {
+        let output;
+        if args.output == "DEFAULT_OUTPUT".to_string() {
+            output = "out.txt".to_string();
+        } else {
+            output = args.output;
+        }
         match decompile(args.input, args.silent) {
             Ok(code) => {
-                fs::write(&args.output, &code).expect("Unable to write data");
-                println!("Build done in file : {}", args.output);
+                fs::write(&output, &code).expect("Unable to write data");
+                println!("Build done in file : {}", output);
             }
             Err(erreur) => cprintln!("<red>{}</>", erreur),
         }
     } else {
-        let resultat = compile(args.input, args.silent, args.clean);
-        match resultat {
+        let output;
+        if args.output == "DEFAULT_OUTPUT".to_string() {
+            output = "out".to_string();
+        } else {
+            output = args.output;
+        }
+        match compile(args.input, args.silent, args.clean) {
             Ok(bytecode) => {
-                fs::write(&args.output, &bytecode).expect("Unable to write data");
-                println!("Build done in file : {}", args.output)
+                fs::write(&output, &bytecode).expect("Unable to write data");
+                println!("Build done in file : {}", output)
             }
             Err(erreur) => cprintln!("<red>{}</>", erreur),
         }
