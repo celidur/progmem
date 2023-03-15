@@ -9,7 +9,7 @@ use std::io::{BufRead, BufReader};
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Output location
-    #[arg(short, long)]
+    #[arg(short, long, default_value_t = String::from("out"))]
     output: String,
 
     /// Verbosity of progmem
@@ -251,13 +251,19 @@ fn main() {
     let args = Args::parse();
     if args.decompile {
         match decompile(args.input, args.silent) {
-            Ok(code) => fs::write(args.output, &code).expect("Unable to write data"),
+            Ok(code) => {
+                fs::write(&args.output, &code).expect("Unable to write data");
+                println!("Build done in file : {}", args.output);
+            }
             Err(erreur) => cprintln!("<red>{}</>", erreur),
         }
     } else {
         let resultat = compile(args.input, args.silent, args.clean);
         match resultat {
-            Ok(bytecode) => fs::write(args.output, &bytecode).expect("Unable to write data"),
+            Ok(bytecode) => {
+                fs::write(&args.output, &bytecode).expect("Unable to write data");
+                println!("Build done in file : {}", args.output)
+            }
             Err(erreur) => cprintln!("<red>{}</>", erreur),
         }
     }
