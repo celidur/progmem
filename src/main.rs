@@ -61,7 +61,9 @@ fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, S
         if end && optimize {
             break;
         }
-        let Ok(line) = line else {return Err("Impossible de lire la ligne".to_string())};
+        let Ok(line) = line else {return Err(format!(
+            "Line {}: Impossible de lire la ligne",
+            i + 1))};
         if let (Some(comment), true) = (re.find(&line), (!silent)) {
             cprintln!("<green>{}</>", comment.as_str());
         }
@@ -74,7 +76,8 @@ fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, S
         if !instructions.last().unwrap().is_empty() {
             return Err(format!(
                 "Line {}: Instruction need to end with a semicolon: {}",
-                i, line
+                i + 1,
+                instructions.last().unwrap()
             ));
         } // verify if the instruction as a semicolon at the end
         for instruction in instructions {
@@ -90,12 +93,13 @@ fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, S
             if !(operation.to_lowercase() == operation || operation.to_uppercase() == operation) {
                 return Err(format!(
                     "Line {}: Instruction need to be in upper case or lower case: {}",
-                    i, instruction
+                    i + 1,
+                    instruction
                 ));
             }
             let operation = operation.to_lowercase();
             let Some(set_instruction) = set_instructions.get(operation.as_str()) else {
-                return Err(format!("Line {}: Unknown instruction: {}", i, operation))
+                return Err(format!("Line {}: Unknown instruction: {}", i + 1, operation))
             };
             if operation == "dbt" {
                 if start && optimize {
@@ -112,27 +116,28 @@ fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, S
             }
             if operation == "dbc" {
                 if start_loop {
-                    return Err(format!("Line {}: You can't embed loop", i));
+                    return Err(format!("Line {}: You can't embed loop", i + 1));
                 }
                 start_loop = true;
             }
             if operation == "fbc" {
                 if !start_loop {
-                    return Err(format!("Line {}: There is not loop set", i));
+                    return Err(format!("Line {}: There is not loop set", i + 1));
                 }
                 start_loop = false;
             }
             if set_instruction.1 {
                 if argument.is_none() {
                     return Err(format!(
-                        "Line {}: Instruction {} need argument",
-                        i, operation
+                        "Line {}: Instruction '{}' need argument",
+                        i + 1,
+                        operation
                     ));
                 }
                 let Ok(argument) = argument.unwrap().parse::<u8>() else {
                     return Err(format!(
-                        "Line {}: Instruction {} have an invalid argument {}",
-                        i, operation, argument.unwrap()
+                        "Line {}: Instruction '{}' have an invalid argument {}",
+                        i + 1, operation, argument.unwrap()
                     ));
                 };
                 result.push(set_instruction.0);
@@ -150,8 +155,9 @@ fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, S
             if !set_instruction.1 {
                 if argument.is_some() {
                     return Err(format!(
-                        "Line {}: Instruction {} does not need argument",
-                        i, operation
+                        "Line {}: Instruction '{}' does not need argument",
+                        i + 1,
+                        operation
                     ));
                 }
                 result.push(set_instruction.0);
