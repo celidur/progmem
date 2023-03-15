@@ -7,4 +7,6 @@ edition = "2021"
 
 [dependencies]
 regex = "1"
-clap = {version = "4.1.8", features = ["derive"]}
+clap = {version = "4", features = ["derive"]}
+map-macro = "0.2.5"
+color-print = "0.3.4"
