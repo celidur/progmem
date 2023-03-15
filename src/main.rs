@@ -26,7 +26,14 @@ fn compile(file_name: &str, debug: bool) -> Vec<u8> {
     result.push(0);
     result.push(0);
     for line in reader.lines() {
-        let line = line.unwrap().splitn(2, |c| c == '/' || c == '#' || c == '%').next().unwrap().to_string();
+        // if debug print comment
+        let n = line.unwrap();
+        let re = regex::Regex::new(r"(//|#|%).*").unwrap();
+        let l = re.find(&n).map_or("".to_string(), |m| m.as_str().to_string());
+        if debug && !l.is_empty() {
+            println!("{}", l);
+        }
+        let line = n.splitn(2, |c| c == '/' || c == '#' || c == '%').next().unwrap().to_string();
         if line.is_empty() {continue}
         let list = line.split(';').map(|s| s.trim()).collect::<Vec<&str>>();
         if !list.last().unwrap().is_empty(){panic!("Unknown instruction: {}", line);} // verify if the instruction as a semicolon at the end
