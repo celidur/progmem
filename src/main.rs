@@ -85,7 +85,7 @@ fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, S
             let remove_multiple_space = Regex::new("  ").unwrap();
             let instruction = remove_multiple_space.replace_all(instruction, " ");
             let mut iterator = instruction.split(' ');
-            let operation = iterator.next().unwrap().to_lowercase();
+            let operation = iterator.next().unwrap();
             let argument = iterator.next();
             if !(operation.to_lowercase() == operation || operation.to_uppercase() == operation) {
                 return Err(format!(
@@ -93,11 +93,12 @@ fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, S
                     i, instruction
                 ));
             }
+            let operation = operation.to_lowercase();
             let Some(set_instruction) = set_instructions.get(operation.as_str()) else {
                 return Err(format!("Line {}: Unknown instruction: {}", i, operation))
             };
             if operation == "dbt" {
-                if start {
+                if start && optimize {
                     remove_instruction.push(result.len());
                     can_print = false;
                 } else {
@@ -158,7 +159,7 @@ fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, S
                 if !silent && can_print {
                     cprintln!(
                         "<blue>{}</>\t-> <blue>{:02x}</> 00",
-                        instruction,
+                        operation,
                         set_instruction.0
                     )
                 }
