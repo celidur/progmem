@@ -23,6 +23,8 @@ fn compile(file_name: &str, debug: bool) -> Vec<u8> {
     ];
     // define result as a vector of u8
     let mut result = Vec::new() as Vec<u8>;
+    result.push(0);
+    result.push(0);
     for line in reader.lines() {
         let line = line.unwrap().splitn(2, |c| c == '/' || c == '#' || c == '%').next().unwrap().to_string();
         if line.is_empty() {continue}
@@ -36,22 +38,22 @@ fn compile(file_name: &str, debug: bool) -> Vec<u8> {
             let mut found_instruction = false;
             for (instruction, opcode) in &set_instructions {
                 if j.to_lowercase().starts_with(instruction) {
-                    if debug {
-
-                    }
                     result.push(opcode[0]);
-                    if opcode[1] == 1 {
+                    if opcode[1] == 0 {
+                        if !j[instruction.len()..].trim().is_empty() {
+                            panic!("Unknown instruction: {}", j); // verify if the instruction has a parameter
+                        }
+                        if debug { 
+                            println!("{} -> {:02x} 00", instruction, opcode[0])
+                        }
+                        result.push(0);
+                    }
+                    else if opcode[1] == 1 {
                         if debug { 
                             let number = j[instruction.len()..].trim().parse::<u8>().unwrap();
                             println!("{} {} -> {:02x} {:02x}", instruction, number, opcode[0], number)
                         }
                         result.push(j[instruction.len()..].trim().parse::<u8>().unwrap());
-                    }
-                    else if !j[instruction.len()..].trim().is_empty() {
-                        panic!("Unknown instruction: {}", j); // verify if the instruction has a parameter
-                    }
-                    else if debug {
-                        println!("{} -> {:02x}", instruction, opcode[0])
                     }
                     found_instruction = true;
                     break;
@@ -62,6 +64,8 @@ fn compile(file_name: &str, debug: bool) -> Vec<u8> {
             }
         }
     }
+    result[0] = (result.len() >> 8) as u8;
+    result[1] = (result.len() & 0xff) as u8;
     result
 }
 fn main() {
@@ -75,10 +79,6 @@ fn main() {
         // if file exists, delete it
         let mut file = File::create(file_output).expect("Unable to create file");
         let resultat = compile(file_input, debug);
-        // transform the vector of u8 to a string in hexadecimal
-        let res = resultat.iter().map(|x| format!("{:02x}", x)).collect::<Vec<String>>().join(" ");
-        file.write_all(&res.as_bytes()).expect("Unable to write data");
-        
+        file.write_all(&resultat).expect("Unable to write data");
     }
-
 }
