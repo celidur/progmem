@@ -20,11 +20,15 @@ struct Args {
     #[arg(short, long, default_value_t = false)]
     decompile: bool,
 
+    /// Optimization
+    #[arg(short, long, default_value_t = false)]
+    clean: bool,
+
     /// Input
     input: String,
 }
 
-fn compile(file_name: String, silent: bool) -> Result<Vec<u8>, String> {
+fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, String> {
     let file = File::open(file_name).expect("Unable to open file");
     let reader = BufReader::new(file);
     let set_instructions = map! {
@@ -47,9 +51,18 @@ fn compile(file_name: String, silent: bool) -> Result<Vec<u8>, String> {
     result.push(0);
     result.push(0);
     let re = Regex::new(r"(//|#|%).*").unwrap();
+    let mut index_start = 0;
+    let mut start = false;
+    let mut end = false;
+    let mut start_loop = false;
+    let mut remove_instruction = vec![];
+    let mut can_print;
     for (i, line) in reader.lines().enumerate() {
+        if end && optimize {
+            break;
+        }
         let Ok(line) = line else {return Err("Impossible de lire la ligne".to_string())};
-        if let (Some(comment), true) = (re.find(&line), !silent) {
+        if let (Some(comment), true) = (re.find(&line), (!silent)) {
             cprintln!("<green>{}</>", comment.as_str());
         }
 
@@ -65,9 +78,10 @@ fn compile(file_name: String, silent: bool) -> Result<Vec<u8>, String> {
             ));
         } // verify if the instruction as a semicolon at the end
         for instruction in instructions {
-            if instruction.is_empty() {
+            if instruction.is_empty() || (end && optimize) {
                 continue;
             }
+            can_print = !optimize || start;
             let remove_multiple_space = Regex::new("  ").unwrap();
             let instruction = remove_multiple_space.replace_all(instruction, " ");
             let mut iterator = instruction.split(' ');
@@ -82,6 +96,31 @@ fn compile(file_name: String, silent: bool) -> Result<Vec<u8>, String> {
             let Some(set_instruction) = set_instructions.get(operation.as_str()) else {
                 return Err(format!("Line {}: Unknown instruction: {}", i, operation))
             };
+            if operation == "dbt" {
+                if start {
+                    remove_instruction.push(result.len());
+                    can_print = false;
+                } else {
+                    index_start = result.len();
+                    start = true;
+                    can_print = true;
+                }
+            }
+            if operation == "fin" && start {
+                end = true;
+            }
+            if operation == "dbc" {
+                if start_loop {
+                    return Err(format!("Line {}: You can't embed loop", i));
+                }
+                start_loop = true;
+            }
+            if operation == "fbc" {
+                if !start_loop {
+                    return Err(format!("Line {}: There is not loop set", i));
+                }
+                start_loop = false;
+            }
             if set_instruction.1 {
                 if argument.is_none() {
                     return Err(format!(
@@ -97,7 +136,7 @@ fn compile(file_name: String, silent: bool) -> Result<Vec<u8>, String> {
                 };
                 result.push(set_instruction.0);
                 result.push(argument);
-                if !silent {
+                if !silent && can_print {
                     cprintln!(
                         "<blue>{}</> <yellow>{}</>\t-> <blue>{:02x}</> <yellow>{:02x}</>",
                         operation,
@@ -116,7 +155,7 @@ fn compile(file_name: String, silent: bool) -> Result<Vec<u8>, String> {
                 }
                 result.push(set_instruction.0);
                 result.push(0);
-                if !silent {
+                if !silent && can_print {
                     cprintln!(
                         "<blue>{}</>\t-> <blue>{:02x}</> 00",
                         instruction,
@@ -125,6 +164,22 @@ fn compile(file_name: String, silent: bool) -> Result<Vec<u8>, String> {
                 }
             }
         }
+    }
+    if !start {
+        return Err("The program doesn't start".to_string());
+    }
+    if !end {
+        return Err("The program doesn't end".to_string());
+    }
+    if start_loop {
+        return Err("The loop doesn't end".to_string());
+    }
+    if optimize {
+        for i in remove_instruction.iter().rev() {
+            result.remove(*i);
+            result.remove(*i);
+        }
+        result.drain(0..index_start - 2);
     }
     result[0] = (result.len() >> 8) as u8;
     result[1] = (result.len() & 0xff) as u8;
@@ -156,8 +211,8 @@ fn decompile(file_name: String, silent: bool) -> Result<String, String> {
         return Err("Invalid file format".to_string());
     }
     let mut data_iterator = data.iter();
-    let first_element = data_iterator.next().unwrap();
-    let second_element = data_iterator.next().unwrap();
+    let first_element = *data_iterator.next().unwrap() as u16;
+    let second_element = *data_iterator.next().unwrap() as u16;
     let size = ((first_element << 8) + second_element) as u16;
     let mut result = String::new();
     if data.len() as u16 != size {
@@ -199,7 +254,7 @@ fn main() {
             Err(erreur) => cprintln!("<red>{}</>", erreur),
         }
     } else {
-        let resultat = compile(args.input, args.silent);
+        let resultat = compile(args.input, args.silent, args.clean);
         match resultat {
             Ok(bytecode) => fs::write(args.output, &bytecode).expect("Unable to write data"),
             Err(erreur) => cprintln!("<red>{}</>", erreur),
