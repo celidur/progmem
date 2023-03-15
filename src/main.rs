@@ -1,8 +1,24 @@
+use clap::Parser;
+use regex::Regex;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
-use std::env;
 
-fn compile(file_name: &str, debug: bool) -> Vec<u8> {
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Output location
+    #[arg(short, long)]
+    output: String,
+
+    /// Verbosity of progmem
+    #[arg(short, long, default_value_t = false)]
+    verbose: bool,
+
+    /// Input
+    input: String,
+}
+
+fn compile(file_name: String, debug: bool) -> Vec<u8> {
     let file = File::open(file_name).expect("Unable to open file");
     let reader = BufReader::new(file);
     let set_instructions = [
@@ -22,36 +38,58 @@ fn compile(file_name: &str, debug: bool) -> Vec<u8> {
         ("fin", [0b11111111, 0]),
     ];
     // define result as a vector of u8
-    let mut result = Vec::new() as Vec<u8>;
+    let mut result = vec![];
     result.push(0);
     result.push(0);
     for line in reader.lines() {
-        let line = line.unwrap().splitn(2, |c| c == '/' || c == '#' || c == '%').next().unwrap().to_string();
-        if line.is_empty() {continue}
+        let Ok(line) = line else {continue;};
+        let re = Regex::new(r"(//|#|%).*").unwrap();
+        let l = re
+            .find(&line)
+            .map_or("".to_string(), |m| m.as_str().to_string());
+        if debug && !l.is_empty() {
+            println!("{}", l);
+        }
+        let line = line
+            .splitn(2, |c| c == '/' || c == '#' || c == '%')
+            .next()
+            .unwrap()
+            .to_string();
+        if line.is_empty() {
+            continue;
+        }
         let list = line.split(';').map(|s| s.trim()).collect::<Vec<&str>>();
-        if !list.last().unwrap().is_empty(){panic!("Unknown instruction: {}", line);} // verify if the instruction as a semicolon at the end
-        for j in list{
-            if j.is_empty(){continue}
+        if !list.last().unwrap().is_empty() {
+            panic!("Unknown instruction: {}", line);
+        } // verify if the instruction as a semicolon at the end
+        for j in list {
+            if j.is_empty() {
+                continue;
+            }
             if !(j.to_lowercase() == j || j.to_uppercase() == j) {
-                panic!("Unknown instruction: {}", j); // verify if the instruction is in only uppercase or only lowercase
+                panic!("Instruction need to be in upper case or lower case: {}", j);
             }
             let mut found_instruction = false;
             for (instruction, opcode) in &set_instructions {
                 if j.to_lowercase().starts_with(instruction) {
                     result.push(opcode[0]);
+
+                    // println!("{} ",j);
                     if opcode[1] == 0 {
                         if !j[instruction.len()..].trim().is_empty() {
-                            panic!("Unknown instruction: {}", j); // verify if the instruction has a parameter
+                            panic!("the instruction can't have opcode : {}", j);
                         }
-                        if debug { 
+                        if debug {
                             println!("{} -> {:02x} 00", instruction, opcode[0])
                         }
                         result.push(0);
-                    }
-                    else if opcode[1] == 1 {
-                        if debug { 
+                    } else if opcode[1] == 1 {
+                        if debug {
                             let number = j[instruction.len()..].trim().parse::<u8>().unwrap();
-                            println!("{} {} -> {:02x} {:02x}", instruction, number, opcode[0], number)
+                            println!(
+                                "{} {} -> {:02x} {:02x}",
+                                instruction, number, opcode[0], number
+                            )
                         }
                         result.push(j[instruction.len()..].trim().parse::<u8>().unwrap());
                     }
@@ -66,19 +104,16 @@ fn compile(file_name: &str, debug: bool) -> Vec<u8> {
     }
     result[0] = (result.len() >> 8) as u8;
     result[1] = (result.len() & 0xff) as u8;
+    if debug {
+        println!("----------------------\nsize: {}", result.len());
+    }
     result
 }
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    let debug = args.len() > 1 && args[1] == "-v";
+    let args = Args::parse();
     // recuperer le prochain argument
-    let mode = &args[1 + debug as usize];
-    if mode == "-o" {
-        let file_output = &args[2 + debug as usize];
-        let file_input = &args[3 + debug as usize];
-        // if file exists, delete it
-        let mut file = File::create(file_output).expect("Unable to create file");
-        let resultat = compile(file_input, debug);
-        file.write_all(&resultat).expect("Unable to write data");
-    }
+    // if file exists, delete it
+    let mut file = File::create(args.output).expect("Unable to create file");
+    let resultat = compile(args.input, args.verbose);
+    file.write_all(&resultat).expect("Unable to write data");
 }
