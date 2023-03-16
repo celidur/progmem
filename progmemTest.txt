@@ -7,7 +7,7 @@ FIN;
 ATT 8  ;
 DAL 1 	;  // ceci est aussi un commentaire
 //kk        # provoquera une erreur de compilation
-DET ;
+DET 50;
 SGO 90 ;
 SAR ;     # un commentaire tout aussi bon
 MAR;

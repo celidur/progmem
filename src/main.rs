@@ -57,6 +57,7 @@ fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, S
     let mut start_loop = false;
     let mut remove_instruction = vec![];
     let mut can_print;
+    let mut warnings = vec![];
     for (i, line) in reader.lines().enumerate() {
         if end && optimize {
             break;
@@ -153,12 +154,15 @@ fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, S
                 }
             }
             if !set_instruction.1 {
-                if argument.is_some() {
+                if argument.is_some() && operation != "det" {
                     return Err(format!(
                         "Line {}: Instruction '{}' does not need argument",
                         i + 1,
                         operation
                     ));
+                }
+                if argument.is_some() && operation == "det" {
+                    warnings.push(format!("Warning: Line {}: Instruction '{}' does not need an argument, this is a bug in the original progmem", i+1, operation));
                 }
                 result.push(set_instruction.0);
                 result.push(0);
@@ -190,9 +194,10 @@ fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, S
     }
     result[0] = (result.len() >> 8) as u8;
     result[1] = (result.len() & 0xff) as u8;
-    if !silent {
-        println!("----------------\nsize: {}", result.len());
+    for warning in warnings {
+        cprintln!("<yellow>{}</>", warning);
     }
+    println!("----------------\nsize: {}", result.len());
     Ok(result)
 }
 

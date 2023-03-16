@@ -2,7 +2,7 @@
 Ce programme peut compiler les programmes vers le bytecode défini par [le tp9 du cours de INF1900 de Polytechnique Montréal](https://cours.polymtl.ca/inf1900/tp/tp9/).
 
 ## Différence majeure avec Progmem du cours de INF1900
-Contrairement à Progmem du cours de INF1900, l'instruction `det`
+Contrairement à Progmem du cours de INF1900, l'instruction `det` ne prend pas d'opérande.
 
 ## Fonctionnalitées
 - Multiplateforme Mac et Linux
