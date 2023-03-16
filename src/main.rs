@@ -16,7 +16,7 @@ struct Args {
     decompile: bool,
 
     /// Output location
-    #[arg(short, long, default_value_t = String::from("out.txt"))]
+    #[arg(short, long, default_value_t = String::from("out"))]
     output: String,
 
     /// Verbosity of progmem
