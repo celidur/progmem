@@ -25,3 +25,11 @@ pub enum CompilerError {
     #[error("The loop doesn't end")]
     MissingLoopEnd,
 }
+
+#[derive(Error, Debug)]
+pub enum DecompilerError {
+    #[error("Invalid file format")]
+    FileFormat,
+    #[error("Unknown instruction: {0}")]
+    UnknownInstruction(u8),
+}
