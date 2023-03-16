@@ -13,4 +13,5 @@ lto = "fat"
 regex = "1"
 clap = {version = "4", features = ["derive"]}
 map-macro = "0.2.5"
+thiserror = "1.0.39"
 color-print = "0.3.4"

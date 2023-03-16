@@ -1,9 +1,12 @@
+use crate::errors::CompilerError;
 use clap::Parser;
 use color_print::cprintln;
 use map_macro::map;
 use regex::Regex;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
+
+mod errors;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -13,7 +16,7 @@ struct Args {
     decompile: bool,
 
     /// Output location
-    #[arg(short, long, default_value_t = String::from("DEFAULT_OUTPUT"))]
+    #[arg(short, long, default_value_t = String::from("out.txt"))]
     output: String,
 
     /// Verbosity of progmem
@@ -28,7 +31,7 @@ struct Args {
     input: String,
 }
 
-fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, String> {
+fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, CompilerError> {
     let file = File::open(file_name).expect("Unable to open file");
     let reader = BufReader::new(file);
     let set_instructions = map! {
@@ -47,10 +50,9 @@ fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, S
     "fbc" => (0b11000001, false),
     "fin" => (0b11111111, false)};
     // define result as a vector of u8
-    let mut result = vec![];
-    result.push(0);
-    result.push(0);
-    let re = Regex::new(r"(//|#|%).*").unwrap();
+    let mut result = vec![0, 0];
+    let comments = Regex::new(r"(//|#|%).*").unwrap();
+    let remove_multiple_space = Regex::new("  ").unwrap();
     let mut index_start = 0;
     let mut start = false;
     let mut end = false;
@@ -62,45 +64,45 @@ fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, S
         if end && optimize {
             break;
         }
-        let Ok(line) = line else {return Err(format!(
-            "Line {}: Impossible de lire la ligne",
-            i + 1))};
-        if let (Some(comment), true) = (re.find(&line), (!silent)) {
+
+        let Ok(line) = line else {
+            return Err(CompilerError::ReadLine(i));
+        };
+
+        if let (Some(comment), false) = (comments.find(&line), silent) {
             cprintln!("<green>{}</>", comment.as_str());
         }
 
-        let line = re.replace_all(&line, "");
+        let line = comments.replace_all(&line, "");
+
         if line.is_empty() {
             continue;
         }
+
         let instructions: Vec<&str> = line.split(';').map(|s| s.trim()).collect();
+
         if !instructions.last().unwrap().is_empty() {
-            return Err(format!(
-                "Line {}: Instruction need to end with a semicolon: {}",
+            return Err(CompilerError::LackSemiColon(
                 i + 1,
-                instructions.last().unwrap()
+                instructions.last().unwrap().to_string(),
             ));
-        } // verify if the instruction as a semicolon at the end
+        }
+
         for instruction in instructions {
             if instruction.is_empty() || (end && optimize) {
                 continue;
             }
             can_print = !optimize || start;
-            let remove_multiple_space = Regex::new("  ").unwrap();
             let instruction = remove_multiple_space.replace_all(instruction, " ");
             let mut iterator = instruction.split(' ');
             let operation = iterator.next().unwrap();
             let argument = iterator.next();
             if !(operation.to_lowercase() == operation || operation.to_uppercase() == operation) {
-                return Err(format!(
-                    "Line {}: Instruction need to be in upper case or lower case: {}",
-                    i + 1,
-                    instruction
-                ));
+                return Err(CompilerError::CaseError(i + 1, operation.to_string()));
             }
             let operation = operation.to_lowercase();
             let Some(set_instruction) = set_instructions.get(operation.as_str()) else {
-                return Err(format!("Line {}: Unknown instruction: {}", i + 1, operation))
+                return Err(CompilerError::UnknownInstruction(i+1, instruction.to_string()))
             };
             if operation == "dbt" {
                 if start && optimize {
@@ -117,29 +119,22 @@ fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, S
             }
             if operation == "dbc" {
                 if start_loop {
-                    return Err(format!("Line {}: You can't embed loop", i + 1));
+                    return Err(CompilerError::MultipleLoop(i + 1));
                 }
                 start_loop = true;
             }
             if operation == "fbc" {
                 if !start_loop {
-                    return Err(format!("Line {}: There is not loop set", i + 1));
+                    return Err(CompilerError::NoLoop(i + 1));
                 }
                 start_loop = false;
             }
             if set_instruction.1 {
                 if argument.is_none() {
-                    return Err(format!(
-                        "Line {}: Instruction '{}' need argument",
-                        i + 1,
-                        operation
-                    ));
+                    return Err(CompilerError::MissingOperand(i + 1, operation));
                 }
                 let Ok(argument) = argument.unwrap().parse::<u8>() else {
-                    return Err(format!(
-                        "Line {}: Instruction '{}' have an invalid argument {}",
-                        i + 1, operation, argument.unwrap()
-                    ));
+                    return Err(CompilerError::InvalidOperand(i+1, operation, argument.unwrap().to_string()))
                 };
                 result.push(set_instruction.0);
                 result.push(argument);
@@ -154,15 +149,12 @@ fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, S
                 }
             }
             if !set_instruction.1 {
-                if argument.is_some() && operation != "det" {
-                    return Err(format!(
-                        "Line {}: Instruction '{}' does not need argument",
+                if argument.is_some() {
+                    warnings.push(format!(
+                        "Warning line {}: Instruction '{}' does not need an operand",
                         i + 1,
                         operation
                     ));
-                }
-                if argument.is_some() && operation == "det" {
-                    warnings.push(format!("Warning: Line {}: Instruction '{}' does not need an argument, this is a bug in the original progmem", i+1, operation));
                 }
                 result.push(set_instruction.0);
                 result.push(0);
@@ -177,13 +169,13 @@ fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, S
         }
     }
     if !start {
-        return Err("The program doesn't start".to_string());
+        return Err(CompilerError::MissingStart);
     }
     if !end {
-        return Err("The program doesn't end".to_string());
+        return Err(CompilerError::MissingEnd);
     }
     if start_loop {
-        return Err("The loop doesn't end".to_string());
+        return Err(CompilerError::MissingLoopEnd);
     }
     if optimize {
         for i in remove_instruction.iter().rev() {
@@ -262,30 +254,18 @@ fn decompile(file_name: String, silent: bool) -> Result<String, String> {
 fn main() {
     let args = Args::parse();
     if args.decompile {
-        let output;
-        if args.output == "DEFAULT_OUTPUT".to_string() {
-            output = "out.txt".to_string();
-        } else {
-            output = args.output;
-        }
         match decompile(args.input, args.silent) {
             Ok(code) => {
-                fs::write(&output, &code).expect("Unable to write data");
-                println!("Build done in file : {}", output);
+                fs::write(&args.output, &code).expect("Unable to write data");
+                println!("Build done in file : {}", args.output);
             }
             Err(erreur) => cprintln!("<red>{}</>", erreur),
         }
     } else {
-        let output;
-        if args.output == "DEFAULT_OUTPUT".to_string() {
-            output = "out".to_string();
-        } else {
-            output = args.output;
-        }
         match compile(args.input, args.silent, args.clean) {
             Ok(bytecode) => {
-                fs::write(&output, &bytecode).expect("Unable to write data");
-                println!("Build done in file : {}", output)
+                fs::write(&args.output, &bytecode).expect("Unable to write data");
+                println!("Build done in file : {}", args.output)
             }
             Err(erreur) => cprintln!("<red>{}</>", erreur),
         }
