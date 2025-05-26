@@ -1,12 +1,12 @@
 use crate::errors::DecompilerError;
 use color_print::cprintln;
-use map_macro::map;
+use map_macro::hash_map;
 use std::fs;
 
 pub fn decompile(file_name: String, silent: bool) -> Result<String, DecompilerError> {
-    let set_instructions = map! {
+    let set_instructions = hash_map! {
         0b00000001 => ("dbt", false),
-        0b00000010 => ("dbt", true),
+        0b00000010 => ("att", true),
         0b01000100 => ("dal", true),
         0b01000101 => ("det", false),
         0b01001000 => ("sgo", true),
@@ -35,7 +35,7 @@ pub fn decompile(file_name: String, silent: bool) -> Result<String, DecompilerEr
     }
     while let (Some(instruction), Some(argument)) = (data_iterator.next(), data_iterator.next()) {
         let Some(set_instruction) = set_instructions.get(instruction) else {
-            return Err(DecompilerError::UnknownInstruction(*instruction))
+            return Err(DecompilerError::UnknownInstruction(*instruction));
         };
         if set_instruction.1 {
             if !silent {

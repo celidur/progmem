@@ -1,5 +1,5 @@
 use color_print::cprintln;
-use map_macro::map;
+use map_macro::hash_map;
 use regex::Regex;
 use std::{
     fs::File,
@@ -11,7 +11,7 @@ use crate::errors::CompilerError;
 pub fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8>, CompilerError> {
     let file = File::open(file_name).expect("Unable to open file");
     let reader = BufReader::new(file);
-    let set_instructions = map! {
+    let set_instructions = hash_map! {
     "dbt" => (0b00000001, false),
     "att" => (0b00000010, true),
     "dal" => (0b01000100, true),
@@ -29,7 +29,7 @@ pub fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8
     // define result as a vector of u8
     let mut result = vec![0, 0];
     let comments = Regex::new(r"(//|#|%).*").unwrap();
-    let remove_multiple_space = Regex::new("  ").unwrap();
+    let remove_multiple_space = Regex::new(r"\s+").unwrap();
     let mut index_start = 0;
     let mut start = false;
     let mut end = false;
@@ -79,7 +79,10 @@ pub fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8
             }
             let operation = operation.to_lowercase();
             let Some(set_instruction) = set_instructions.get(operation.as_str()) else {
-                return Err(CompilerError::UnknownInstruction(i+1, instruction.to_string()))
+                return Err(CompilerError::UnknownInstruction(
+                    i + 1,
+                    instruction.to_string(),
+                ));
             };
             if operation == "dbt" {
                 if start && optimize {
@@ -111,7 +114,11 @@ pub fn compile(file_name: String, silent: bool, optimize: bool) -> Result<Vec<u8
                     return Err(CompilerError::MissingOperand(i + 1, operation));
                 }
                 let Ok(argument) = argument.unwrap().parse::<u8>() else {
-                    return Err(CompilerError::InvalidOperand(i+1, operation, argument.unwrap().to_string()))
+                    return Err(CompilerError::InvalidOperand(
+                        i + 1,
+                        operation,
+                        argument.unwrap().to_string(),
+                    ));
                 };
                 result.push(set_instruction.0);
                 result.push(argument);
